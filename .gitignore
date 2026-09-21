@@ -1,0 +1,15 @@
+# secrets: your TypeSafe key lives here and must never be committed
+.env
+
+# recordings and presenter material
+*.mov
+*.mp4
+*.pptx
+YOUTUBE_PACKAGE.md
+thumbnails/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/

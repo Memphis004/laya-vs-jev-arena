@@ -1,0 +1,2 @@
+# Laya: the open-source decision model (Apache 2.0). Pulls in torch + transformers.
+laya>=0.3.4

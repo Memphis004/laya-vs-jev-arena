@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Typed Decision Lab — Snake Benchmark</title>
+<style>
+  :root{
+    --bg:#070d0b; --line:rgba(120,220,170,.16); --ink:#dff6ea; --muted:#7ba493;
+    --p1:#5ef2a8; --p2:#5ec8f2;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  #app{display:flex;flex-direction:column;height:100%}
+
+  header{display:flex;align-items:center;gap:13px;flex-wrap:wrap;
+    padding:11px 18px;border-bottom:1px solid var(--line);background:rgba(6,14,11,.6)}
+  .brand{font-size:10px;letter-spacing:.3em;color:var(--muted);text-transform:uppercase}
+  .brand b{display:block;font-size:19px;letter-spacing:.18em;color:var(--ink);margin-top:3px}
+  .brand b i{font-style:normal;color:var(--muted);margin:0 8px}
+  .spacer{flex:1}
+  button{cursor:pointer;font:inherit;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    border-radius:999px;padding:9px 18px;border:1px solid var(--line);
+    background:rgba(255,255,255,.04);color:var(--ink)}
+  button.primary{background:var(--p1);color:#052015;border-color:transparent;font-weight:700}
+  button:disabled{opacity:.4;cursor:default}
+  .field{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;
+    color:var(--muted);text-transform:uppercase}
+  input,select{font:inherit;font-size:11px;color:var(--ink);background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  input[type=number]{width:72px}
+  .clock{font-size:19px;letter-spacing:.1em;min-width:84px;text-align:right}
+  .meta{font-size:9px;letter-spacing:.1em;color:var(--muted);text-align:right;line-height:1.6}
+  .meta b{color:var(--ink)}
+
+  .arenas{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;min-height:0}
+  .arena{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);
+    border-radius:14px;overflow:hidden;background:rgba(6,14,11,.5)}
+  .bar{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--line)}
+  .who{font-size:17px;letter-spacing:.2em}
+  .p1 .who{color:var(--p1)} .p2 .who{color:var(--p2)}
+  .sub{font-size:10px;letter-spacing:.1em;color:var(--muted);margin-top:3px}
+  .tag{margin-left:auto;font-size:9px;letter-spacing:.14em;color:var(--muted);
+    border:1px solid var(--line);border-radius:6px;padding:4px 8px;white-space:nowrap}
+  .scores{display:flex;align-items:baseline;gap:15px;padding:8px 13px}
+  .scores .big{font-size:28px}
+  .scores .lbl{font-size:9px;letter-spacing:.16em;color:var(--muted)}
+  .win{color:#ffd76b;font-size:10px;letter-spacing:.16em;margin-left:auto;align-self:center}
+
+  .stage{flex:1;min-height:0;position:relative}
+  canvas{display:block;width:100%;height:100%}
+  .dead{position:absolute;inset:0;display:none;place-items:center;text-align:center;
+    background:rgba(5,12,9,.7);font-size:11px;letter-spacing:.18em;color:var(--muted)}
+  .dead.show{display:grid}
+  .dead b{display:block;font-size:20px;letter-spacing:.16em;color:#ff7a6b;margin-bottom:6px}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+    border-top:1px solid var(--line)}
+  .stat{background:rgba(6,14,11,.85);padding:8px 11px}
+  .stat i{font-style:normal;display:block;font-size:9px;letter-spacing:.14em;color:var(--muted)}
+  .stat b{font-size:16px;font-weight:600}
+  .stat b s{text-decoration:none;font-size:10px;color:var(--muted);margin-left:2px}
+
+  .probs{padding:9px 13px 11px;border-top:1px solid var(--line);background:rgba(6,14,11,.85)}
+  .prow{display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:9px;
+    letter-spacing:.1em;color:var(--muted)}
+  .prow span:first-child{width:84px}
+  .track{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.05);overflow:hidden}
+  .fill{height:100%;width:0;border-radius:3px;background:var(--p2);transition:width .15s ease}
+  .p1 .fill{background:var(--p1)}
+  .prow em{font-style:normal;width:32px;text-align:right;color:var(--ink)}
+  .err{color:#ff7a6b;font-size:10px;margin-top:5px;min-height:12px;word-break:break-word}
+
+  footer{padding:7px 18px 10px;text-align:center;font-size:10px;letter-spacing:.12em;
+    color:var(--muted);opacity:.75}
+  @media(max-width:900px){
+    .arenas{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+    .stats{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Typed decision lab / snake benchmark<b><span id="n1">LAYA</span> <i>×</i> <span id="n2">JEV</span></b></div>
+    <button class="primary" id="run">Start race</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="exportBtn">Export JSON</button>
+    <label class="field">Seed <input type="number" id="seed" value="2026"></label>
+    <label class="field">Round <input type="number" id="roundSec" value="60" min="10" max="600" style="width:64px"> s</label>
+    <a href="../fight/" style="color:var(--muted);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none">Kombat →</a>
+    <div class="spacer"></div>
+    <div class="meta">PACE <b id="pace">—</b><br>EDGES WRAP · NOTHING DIES · MOST APPLES WINS</div>
+    <div class="clock" id="clock">00:00.0</div>
+  </header>
+
+  <div class="arenas">
+    <section class="arena p1">
+      <div class="bar">
+        <div>
+          <div class="who" id="w1">LAYA</div>
+          <div class="sub">
+            <select id="agent1">
+              <option value="laya" selected>Laya · local, in-process</option>
+              <option value="jev-latest">TypeSafe · jev-latest</option>
+              <option value="jev-1.13.0">TypeSafe · jev-1.13.0</option>
+              <option value="human">Human · keyboard</option>
+              <option value="custom">TypeSafe · custom model id…</option>
+            </select>
+            <input type="text" id="custom1" placeholder="model id" style="display:none;width:128px">
+          </div>
+        </div>
+        <div class="tag" id="tag1">LOCAL</div>
+      </div>
+      <div class="scores">
+        <div><div class="lbl">Score</div><div class="big" id="s1">000</div></div>
+        <div><div class="lbl">Length</div><div class="big" id="l1">000</div></div>
+        <div class="win" id="win1"></div>
+      </div>
+      <div class="stage">
+        <canvas id="c1"></canvas>
+        <div class="dead" id="d1"><div><b>DEAD</b><span id="dr1"></span></div></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc1">0</b></div>
+        <div class="stat"><i>Decisions / s</i><b id="dps1">0.0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p501">0<s>ms</s></b></div>
+        <div class="stat"><i>Survived</i><b id="sr1">0<s>s</s></b></div>
+      </div>
+      <div class="probs" data-side="1">
+        <div class="prow"><span>HARD_LEFT</span><div class="track"><div class="fill" data-k="HARD_LEFT"></div></div><em>0</em></div>
+        <div class="prow"><span>LEFT</span><div class="track"><div class="fill" data-k="LEFT"></div></div><em>0</em></div>
+        <div class="prow"><span>STRAIGHT</span><div class="track"><div class="fill" data-k="STRAIGHT"></div></div><em>0</em></div>
+        <div class="prow"><span>RIGHT</span><div class="track"><div class="fill" data-k="RIGHT"></div></div><em>0</em></div>
+        <div class="prow"><span>HARD_RIGHT</span><div class="track"><div class="fill" data-k="HARD_RIGHT"></div></div><em>0</em></div>
+        <div class="prow"><span>SPRINT p(yes)</span><div class="track"><div class="fill" data-k="SPRINT"></div></div><em>0</em></div>
+        <div class="err" id="e1"></div>
+      </div>
+    </section>
+
+    <section class="arena p2">
+      <div class="bar">
+        <div>
+          <div class="who" id="w2">JEV</div>
+          <div class="sub">
+            <select id="agent2">
+              <option value="jev-latest" selected>TypeSafe · jev-latest</option>
+              <option value="jev-1.13.0">TypeSafe · jev-1.13.0</option>
+              <option value="laya">Laya · local, in-process</option>
+              <option value="human">Human · keyboard</option>
+              <option value="custom">TypeSafe · custom model id…</option>
+            </select>
+            <input type="text" id="custom2" placeholder="model id" style="display:none;width:128px">
+          </div>
+        </div>
+        <div class="tag" id="tag2">REMOTE / API</div>
+      </div>
+      <div class="scores">
+        <div><div class="lbl">Score</div><div class="big" id="s2">000</div></div>
+        <div><div class="lbl">Length</div><div class="big" id="l2">000</div></div>
+        <div class="win" id="win2"></div>
+      </div>
+      <div class="stage">
+        <canvas id="c2"></canvas>
+        <div class="dead" id="d2"><div><b>DEAD</b><span id="dr2"></span></div></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc2">0</b></div>
+        <div class="stat"><i>Decisions / s</i><b id="dps2">0.0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p502">0<s>ms</s></b></div>
+        <div class="stat"><i>Survived</i><b id="sr2">0<s>s</s></b></div>
+      </div>
+      <div class="probs" data-side="2">
+        <div class="prow"><span>HARD_LEFT</span><div class="track"><div class="fill" data-k="HARD_LEFT"></div></div><em>0</em></div>
+        <div class="prow"><span>LEFT</span><div class="track"><div class="fill" data-k="LEFT"></div></div><em>0</em></div>
+        <div class="prow"><span>STRAIGHT</span><div class="track"><div class="fill" data-k="STRAIGHT"></div></div><em>0</em></div>
+        <div class="prow"><span>RIGHT</span><div class="track"><div class="fill" data-k="RIGHT"></div></div><em>0</em></div>
+        <div class="prow"><span>HARD_RIGHT</span><div class="track"><div class="fill" data-k="HARD_RIGHT"></div></div><em>0</em></div>
+        <div class="prow"><span>SPRINT p(yes)</span><div class="track"><div class="fill" data-k="SPRINT"></div></div><em>0</em></div>
+        <div class="err" id="e2"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>SAME QUESTIONS · SAME STATE SHAPE · BOTH SIDES STEER ON THEIR OWN PROBABILITY DISTRIBUTION &nbsp;·&nbsp; HUMAN SIDE: ARROWS / A · D, W TO SPRINT</footer>
+</div>
+
+<script type="module">
+import { Arena } from './game.js';
+import { ModelAgent, HumanAgent } from '../shared/agents.js';
+
+const $ = id => document.getElementById(id);
+
+const keys = new Set();
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k)) e.preventDefault();
+  if ((k === ' ' || k === 'enter') && !starting) startRace();
+  keys.add(k);
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+
+const arenas = [
+  new Arena($('c1'), {hue: 'green', onEvent: onArenaEvent}),
+  new Arena($('c2'), {hue: 'cyan',  onEvent: onArenaEvent})
+];
+const agents = [null, null];
+
+/** Laya runs in the server process, so it answers in milliseconds and needs no
+    request pipelining; the TypeSafe API is a ~1s round trip, so it gets workers. */
+function specFor(side){
+  const sel = $('agent'+side).value;
+  if (sel === 'human') return {kind: 'human'};
+  if (sel === 'laya')  return {kind: 'model', model: 'laya', endpoint: '/api/laya', workers: 2, tag: 'LOCAL'};
+  const model = sel === 'custom' ? ($('custom'+side).value.trim() || 'jev-latest') : sel;
+  return {kind: 'model', model, endpoint: '/api/jev', workers: 3, tag: 'REMOTE / API'};
+}
+
+function buildAgents(){
+  for (const side of [1, 2]){
+    const spec = specFor(side), arena = arenas[side-1];
+    if (agents[side-1]) agents[side-1].stop();
+    agents[side-1] = spec.kind === 'human'
+      ? new HumanAgent(arena, {keys})
+      : new ModelAgent(arena, {
+          model: spec.model, endpoint: spec.endpoint, workers: spec.workers,
+          onUpdate: () => paintAgent(side)
+        });
+    arena.controller = () => agents[side-1].control();
+    const name = spec.kind === 'human' ? 'HUMAN' : spec.model.toUpperCase();
+    $('w'+side).textContent = name;
+    $('n'+side).textContent = name;
+    $('tag'+side).textContent = spec.kind === 'human' ? 'KEYBOARD' : spec.tag;
+  }
+}
+
+for (const side of [1, 2]){
+  $('agent'+side).addEventListener('change', e => {
+    $('custom'+side).style.display = e.target.value === 'custom' ? '' : 'none';
+    buildAgents();
+  });
+}
+
+function onArenaEvent(kind, arena){
+  if (kind !== 'death') return;
+  const side = arenas.indexOf(arena) + 1;
+  $('d'+side).classList.add('show');
+  $('dr'+side).textContent = arena.deathReason;
+  if (!arenas[0].running && !arenas[1].running) endRace();
+}
+
+// ---------- race ----------
+let racing = false, raceStart = 0, starting = false, lastRun = null;
+// Nothing can die in a wrapping arena, so a race is a fixed round, most apples wins.
+// The round runs on SIMULATED seconds, not wall time: a throttled background tab
+// advances the world slowly, and it must not run out the clock while doing so.
+let simElapsed = 0, roundLen = 60;
+
+async function startRace(){
+  if (starting) return;
+  starting = true;
+  buildAgents();
+  const seed = parseInt($('seed').value, 10) || 2026;
+
+  $('d1').classList.remove('show'); $('d2').classList.remove('show');
+  $('win1').textContent = ''; $('win2').textContent = '';
+  $('e1').textContent = ''; $('e2').textContent = '';
+  $('run').disabled = true; $('run').textContent = 'Priming…';
+
+  for (const a of arenas){ a.resize(); a.reset(seed); }
+
+  // one warm-up judgment per model side: nobody drives blind off the line, and a
+  // local model's first call pays its load time here instead of during the race
+  await Promise.all(agents.map(a => a.prime()));
+
+  // both arenas share one pace, set by the SLOWEST side's measured latency, so a
+  // slow model is not punished twice; its disadvantage shows up as decisions/s
+  const lat = Math.max(0.35, ...agents.map(a => (a.p50 || a.lastLatency || 0)/1000));
+  const v = arenas[0].setPacing(lat);
+  arenas[1].baseSpeed = v;
+  arenas[1].sprintSpeed = arenas[0].sprintSpeed;
+  arenas[1].turnRate = arenas[0].turnRate;
+  const degPerTrip = Math.round(arenas[0].turnRate * lat * 57.3);
+  $('pace').textContent =
+    `${Math.round(v)} px/s · ${degPerTrip}°/trip @ ${lat.toFixed(2)}s`;
+
+  for (const a of arenas) a.reset(seed);
+  racing = true; raceStart = performance.now();
+  simElapsed = 0;
+  roundLen = Math.max(10, parseInt($('roundSec').value, 10) || 60);
+  for (const a of arenas){ a.running = true; a.startedAt = raceStart; a.survivedMs = 0; }
+  for (const a of agents) a.start();
+
+  $('run').disabled = false; $('run').textContent = 'Restart';
+  $('stopBtn').disabled = false;
+  starting = false;
+}
+
+function endRace(){
+  racing = false;
+  for (const a of agents) a.stop();
+  $('stopBtn').disabled = true;
+  const [a1, a2] = arenas;
+  if (a1.score !== a2.score) $('win' + (a1.score > a2.score ? 1 : 2)).textContent = 'WINNER';
+  else $('win1').textContent = $('win2').textContent = 'DRAW';
+  lastRun = snapshot();
+}
+
+function stopRace(){
+  for (const a of arenas) a.running = false;
+  endRace();
+}
+
+function snapshot(){
+  return {
+    recorded_at: new Date().toISOString(),
+    seed: parseInt($('seed').value, 10) || 2026,
+    pace_px_per_sec: Math.round(arenas[0].baseSpeed),
+    duration_sec: +simElapsed.toFixed(1),
+    round_sec: roundLen,
+    edges: 'wrap',
+    sides: [1, 2].map(side => {
+      const ar = arenas[side-1], ag = agents[side-1];
+      return {
+        side,
+        model: ag.servedModel || ag.model,
+        requested_model: ag.model,
+        score: ar.score,
+        apples: ar.score/10,
+        length_nodes: ar.length,
+        survived_sec: +((ar.survivedMs/1000) || simElapsed).toFixed(1),
+        death: ar.deathReason || null,
+        decisions: ag.decisions,
+        decisions_per_sec: +ag.rate.toFixed(2),
+        latency_p50_ms: Math.round(ag.p50),
+        latency_p95_ms: Math.round(ag.p95),
+        input_tokens: ag.inputTokens,
+        output_tokens: ag.outputTokens,
+        error: ag.error || null
+      };
+    })
+  };
+}
+
+$('run').addEventListener('click', startRace);
+$('stopBtn').addEventListener('click', stopRace);
+$('exportBtn').addEventListener('click', () => {
+  const data = lastRun || snapshot();
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `snake-benchmark-seed${data.seed}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ---------- HUD ----------
+const pad = n => String(n).padStart(3, '0');
+
+function paintAgent(side){
+  const ag = agents[side-1];
+  if (!ag) return;
+  $('dc'+side).textContent = ag.decisions;
+  $('dps'+side).textContent = ag.rate.toFixed(1);
+  $('p50'+side).innerHTML = Math.round(ag.p50) + '<s>ms</s>';
+  $('e'+side).textContent = ag.error ? 'error: ' + ag.error : '';
+  const probs = ag.lastProbs || {};
+  for (const fill of document.querySelectorAll(`.probs[data-side="${side}"] .fill`)){
+    const k = fill.dataset.k;
+    const v = k === 'SPRINT' ? (ag.sprintP || 0) : (probs[k] || 0);
+    fill.style.width = (v*100).toFixed(1) + '%';
+    fill.closest('.prow').querySelector('em').textContent = v.toFixed(2);
+  }
+}
+
+let hudT0 = 0;
+function paintFrame(now){
+  for (const side of [1, 2]){
+    const ar = arenas[side-1];
+    $('s'+side).textContent = pad(ar.score);
+    $('l'+side).textContent = pad(ar.length);
+    $('sr'+side).innerHTML =
+      (ar.survivedMs ? ar.survivedMs/1000 : simElapsed).toFixed(1) + '<s>s</s>';
+  }
+  // a fast local model answers far quicker than the display needs repainting
+  if (now - hudT0 > 100){
+    hudT0 = now;
+    for (const side of [1, 2]) paintAgent(side);
+  }
+  if (racing){
+    const s = Math.max(0, roundLen - simElapsed);            // counts down
+    $('clock').textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + (s%60).toFixed(1).padStart(4,'0');
+  }
+}
+
+// ---------- loop ----------
+let t0 = performance.now(), fpsFrames = 0, fpsT0 = t0;
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = (now - t0)/1000; t0 = now;
+  if (dt > 0.05) dt = 0.05;
+  for (const a of arenas) a.step(dt);
+  if (racing){
+    simElapsed += dt;
+    if (simElapsed >= roundLen) stopRace();       // time's up: most apples wins
+  }
+  paintFrame(now);
+  fpsFrames++;
+  if (now - fpsT0 > 500){ window.__viper.fps = fpsFrames*1000/(now-fpsT0); fpsFrames = 0; fpsT0 = now; }
+}
+
+buildAgents();
+for (const a of arenas) a.reset(parseInt($('seed').value, 10) || 2026);
+window.__viper = {arenas, agents, snapshot, fps: 0};
+addEventListener('resize', () => { for (const a of arenas) a.resize(); });
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

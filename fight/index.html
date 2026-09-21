@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Typed Decision Lab — Kombat</title>
+<style>
+  :root{
+    --bg:#0b0713; --line:rgba(200,160,255,.16); --ink:#f0e7ff; --muted:#9b8bb5;
+    --p1:#5ef2a8; --p2:#5ec8f2; --gold:#ffd76b;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  #app{display:flex;flex-direction:column;height:100%}
+
+  header{display:flex;align-items:center;gap:13px;flex-wrap:wrap;
+    padding:11px 18px;border-bottom:1px solid var(--line);background:rgba(12,7,20,.7)}
+  .brand{font-size:10px;letter-spacing:.3em;color:var(--muted);text-transform:uppercase}
+  .brand b{display:block;font-size:19px;letter-spacing:.18em;color:var(--ink);margin-top:3px}
+  .spacer{flex:1}
+  button{cursor:pointer;font:inherit;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    border-radius:999px;padding:9px 18px;border:1px solid var(--line);
+    background:rgba(255,255,255,.04);color:var(--ink)}
+  button.primary{background:var(--gold);color:#2a1a00;border-color:transparent;font-weight:700}
+  button:disabled{opacity:.4;cursor:default}
+  select,input{font:inherit;font-size:11px;color:var(--ink);background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  a{color:var(--muted);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none}
+  a:hover{color:var(--ink)}
+  .meta{font-size:9px;letter-spacing:.1em;color:var(--muted);text-align:right;line-height:1.6}
+  .meta b{color:var(--ink)}
+  .clock{font-size:26px;letter-spacing:.06em;min-width:74px;text-align:right;color:var(--gold)}
+
+  .healthbar{display:flex;align-items:center;gap:16px;padding:12px 18px;
+    border-bottom:1px solid var(--line);background:rgba(12,7,20,.5)}
+  .hp{flex:1;display:flex;flex-direction:column;gap:6px}
+  .hp .row{display:flex;align-items:baseline;gap:10px}
+  .hp .nm{font-size:16px;letter-spacing:.16em}
+  .hp .pct{font-size:14px;color:var(--muted);margin-left:auto}
+  .hp.r .row{flex-direction:row-reverse}
+  .hp.r .pct{margin-left:0;margin-right:auto}
+  .track{height:22px;border:1px solid var(--line);border-radius:4px;background:#1a1226;overflow:hidden;position:relative}
+  .fillbar{height:100%;width:100%;transition:width .12s linear}
+  .hp.r .fillbar{margin-left:auto}
+  .vs{font-size:20px;letter-spacing:.2em;color:var(--gold)}
+
+  .ring{flex:1;min-height:0;position:relative}
+  canvas{display:block;width:100%;height:100%}
+  .verdict{position:absolute;inset:0;display:none;place-items:center;text-align:center;
+    background:rgba(8,4,14,.62)}
+  .verdict.show{display:grid}
+  .verdict b{display:block;font-size:64px;letter-spacing:.14em;color:var(--gold)}
+  .verdict span{font-size:14px;letter-spacing:.2em;color:var(--muted)}
+
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+    border-top:1px solid var(--line)}
+  .panel{background:rgba(12,7,20,.9);padding:12px 16px 14px}
+  .phead{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+  .phead .who{font-size:15px;letter-spacing:.18em}
+  .phead .tag{margin-left:auto;font-size:9px;letter-spacing:.14em;color:var(--muted);
+    border:1px solid var(--line);border-radius:6px;padding:3px 7px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+  .stat i{font-style:normal;display:block;font-size:9px;letter-spacing:.12em;color:var(--muted)}
+  .stat b{font-size:17px}
+  .stat b s{text-decoration:none;font-size:9px;color:var(--muted);margin-left:2px}
+  .prow{display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:9px;
+    letter-spacing:.1em;color:var(--muted)}
+  .prow span:first-child{width:78px}
+  .ptrack{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .pfill{height:100%;width:0;border-radius:3px;transition:width .12s ease}
+  .prow em{font-style:normal;width:30px;text-align:right;color:var(--ink)}
+  .err{color:#ff7a6b;font-size:10px;margin-top:5px;min-height:12px;word-break:break-word}
+  footer{padding:7px 18px 10px;text-align:center;font-size:10px;letter-spacing:.12em;
+    color:var(--muted);opacity:.75}
+  @media(max-width:900px){ .panels{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Typed decision lab / kombat<b><span id="n1">LAYA</span> × <span id="n2">JEV</span></b></div>
+    <button class="primary" id="run">Fight</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="exportBtn">Export JSON</button>
+    <button id="soundBtn">Sound: on</button>
+    <div class="spacer"></div>
+    <a href="../snake/">← Snake lab</a>
+    <div class="meta">TEMPO <b id="pace">—</b><br>BOTH SIDES SEE THE SAME STATE SHAPE</div>
+    <div class="clock" id="clock">90</div>
+  </header>
+
+  <div class="healthbar">
+    <div class="hp" id="hp1">
+      <div class="row"><div class="nm" style="color:var(--p1)" id="w1">LAYA</div><div class="pct" id="h1">100%</div></div>
+      <div class="track"><div class="fillbar" id="f1" style="background:linear-gradient(90deg,#2f7f55,#5ef2a8)"></div></div>
+    </div>
+    <div class="vs">VS</div>
+    <div class="hp r" id="hp2">
+      <div class="row"><div class="nm" style="color:var(--p2)" id="w2">JEV</div><div class="pct" id="h2">100%</div></div>
+      <div class="track"><div class="fillbar" id="f2" style="background:linear-gradient(270deg,#2f6f9f,#5ec8f2)"></div></div>
+    </div>
+  </div>
+
+  <div class="ring">
+    <canvas id="ring"></canvas>
+    <div class="verdict" id="verdict"><div><b id="vtitle">K.O.</b><span id="vsub"></span></div></div>
+  </div>
+
+  <div class="panels">
+    <div class="panel" data-side="1">
+      <div class="phead">
+        <div class="who" style="color:var(--p1)">LAYA</div>
+        <select id="agent1">
+          <option value="laya" selected>Laya · local, in-process</option>
+          <option value="jev-latest">TypeSafe · jev-latest</option>
+          <option value="jev-1.13.0">TypeSafe · jev-1.13.0</option>
+        </select>
+        <div class="tag" id="tag1">LOCAL</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc1">0</b></div>
+        <div class="stat"><i>Dec / s</i><b id="dps1">0.0</b></div>
+        <div class="stat"><i>P50</i><b id="p501">0<s>ms</s></b></div>
+        <div class="stat"><i>Hits / Blocks</i><b id="hb1">0 / 0</b></div>
+      </div>
+      <div id="probs1"></div>
+      <div class="err" id="e1"></div>
+    </div>
+    <div class="panel" data-side="2">
+      <div class="phead">
+        <div class="who" style="color:var(--p2)">JEV</div>
+        <select id="agent2">
+          <option value="jev-latest" selected>TypeSafe · jev-latest</option>
+          <option value="jev-1.13.0">TypeSafe · jev-1.13.0</option>
+          <option value="laya">Laya · local, in-process</option>
+        </select>
+        <div class="tag" id="tag2">REMOTE / API</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc2">0</b></div>
+        <div class="stat"><i>Dec / s</i><b id="dps2">0.0</b></div>
+        <div class="stat"><i>P50</i><b id="p502">0<s>ms</s></b></div>
+        <div class="stat"><i>Hits / Blocks</i><b id="hb2">0 / 0</b></div>
+      </div>
+      <div id="probs2"></div>
+      <div class="err" id="e2"></div>
+    </div>
+  </div>
+
+  <footer>EACH FIGHTER ACTS ON ONE TYPED CHOICE PER DECISION · ATTACK STARTUP IS PACED TO THE SLOWER MODEL SO BOTH CAN REACT · SOUND IS SYNTHESIZED, NO FILES</footer>
+</div>
+
+<script type="module">
+import { Ring, FCFG, ACTIONS } from './fight.js';
+import { ModelAgent } from '../shared/agents.js';
+import { Sfx } from '../shared/sfx.js';
+
+const $ = id => document.getElementById(id);
+
+/* ---------- the judgment ----------
+   One choice picks the action. One noul asks whether to commit to the slow, heavy
+   kick — the question a fighting game actually turns on. */
+const QUESTIONS = {
+  action: {
+    type: 'choice',
+    instructions: {
+      task: 'You are fighting a one-on-one match. Choose what to do in this moment.',
+      goal: 'Take the opponent\'s health to zero while keeping your own. When the clock runs out the fighter with more health left wins.',
+      reading_the_state: 'Distances are in pixels. An attack only connects if the gap is within that attack\'s reach. An attack has three stages: winding up, striking, and recovering. A fighter who is recovering cannot defend and is wide open. A fighter who is winding up is about to hit you.',
+      timing: 'A kick hits much harder than a punch but takes far longer to wind up and leaves you open much longer if it misses. Blocking cuts almost all damage but does nothing if the opponent never attacks, and you cannot hit while blocking.'
+    },
+    criteria: {
+      ADVANCE: 'Step toward the opponent. Use when they are too far away to hit.',
+      RETREAT: 'Step away. Use to escape a corner, to reset spacing, or to make a wound-up attack miss.',
+      PUNCH: 'Fast, short, light. Use when the opponent is within punch range, especially while they are recovering from a missed attack.',
+      KICK: 'Slow, long, heavy. Use when the opponent is within kick range and is NOT about to attack — ideally while they are recovering and open.',
+      BLOCK: 'Guard. Use when the opponent is winding up or striking and you are close enough to be hit.',
+      JUMP: 'Leap. Use to pass over a low attack or to close distance unpredictably.'
+    }
+  },
+  commit: {
+    type: 'noul',
+    instructions: 'Committing means choosing the heavy, slow attack over the safe, fast one. Is this the moment to commit?',
+    criteria: {
+      true: 'The opponent is recovering, cornered, or otherwise cannot punish a slow attack, and they are in range.',
+      false: 'The opponent is winding up, blocking, out of range, or free to move — a slow attack would be punished.'
+    }
+  }
+};
+
+/** a fight agent: same plumbing, different questions and a different readout */
+class FightAgent extends ModelAgent {
+  constructor(ring, who, opts = {}){
+    super(ring, {...opts, questions: QUESTIONS});
+    this.ring = ring;
+    this.who = who;
+    this.action = 'ADVANCE';
+    this.fresh = false;
+    this.commitP = 0;
+  }
+  senseState(){ return this.ring.senseFor(this.who); }
+  onReset(){ this.action = 'ADVANCE'; this.fresh = false; this.commitP = 0; }
+  onAnswers(a){
+    if (a.action){
+      this.action = a.action.choice || 'ADVANCE';
+      this.lastChoice = this.action;
+      this.lastProbs = a.action.probabilities || {};
+      this.confidence = a.action.confidence ?? 0;
+      // a new answer re-arms the one-shot actions: an attack fires once per decision,
+      // never once per frame, or a 60fps loop would machine-gun punches
+      this.fresh = true;
+    }
+    if (a.commit) this.commitP = a.commit.noul ?? 0;
+  }
+  control(){ return this; }     // the ring reads .action and .fresh directly
+}
+
+const ring = new Ring($('ring'), {onEvent: onRingEvent});
+const agents = [null, null];
+
+function specFor(side){
+  const sel = $('agent'+side).value;
+  return sel === 'laya'
+    ? {model: 'laya', endpoint: '/api/laya', workers: 2, tag: 'LOCAL'}
+    : {model: sel, endpoint: '/api/jev', workers: 3, tag: 'REMOTE / API'};
+}
+
+function buildAgents(){
+  for (const side of [1, 2]){
+    const spec = specFor(side);
+    if (agents[side-1]) agents[side-1].stop();
+    agents[side-1] = new FightAgent(ring, side === 1 ? 'left' : 'right', {
+      model: spec.model, endpoint: spec.endpoint, workers: spec.workers,
+      onUpdate: () => paintAgent(side)
+    });
+    const name = spec.model.toUpperCase();
+    $('w'+side).textContent = name;
+    $('n'+side).textContent = name;
+    $('tag'+side).textContent = spec.tag;
+    $('probs'+side).innerHTML = [...ACTIONS, 'COMMIT p(yes)'].map(k => `
+      <div class="prow"><span>${k}</span><div class="ptrack"><div class="pfill"
+        data-k="${k}" style="background:var(--p${side})"></div></div><em>0</em></div>`).join('');
+  }
+}
+for (const side of [1, 2]) $('agent'+side).addEventListener('change', buildAgents);
+
+const sfx = new Sfx();
+$('soundBtn').addEventListener('click', () => {
+  sfx.unlock();
+  sfx.setMuted(!sfx.muted);
+  $('soundBtn').textContent = 'Sound: ' + (sfx.muted ? 'off' : 'on');
+});
+
+function onRingEvent(kind, r, info){
+  // impacts, wind-ups and whiffs all have their own voice
+  if (kind === 'hit') sfx.hit(info && info.move);
+  else if (kind === 'block') sfx.block();
+  else if (kind === 'swing') sfx.swing(info && info.move);
+  else if (kind === 'whiff') sfx.whiff();
+  else if (kind === 'jump') sfx.jump();
+  else if (kind === 'ko') sfx.ko();
+  else if (kind === 'start') sfx.bell();
+
+  if (kind !== 'end') return;
+  if (r.endReason === 'TIME — most health left') sfx.timeUp();
+  for (const a of agents) a.stop();
+  $('stopBtn').disabled = true;
+  const names = [$('w1').textContent, $('w2').textContent];
+  $('vtitle').textContent = r.winner === 'DRAW' ? 'DRAW'
+    : `${r.winner === 'LEFT' ? names[0] : names[1]} WINS`;
+  $('vsub').textContent = r.endReason;
+  $('verdict').classList.add('show');
+  lastRun = snapshot();
+}
+
+// ---------- round control ----------
+let starting = false, lastRun = null;
+
+async function startFight(){
+  if (starting) return;
+  starting = true;
+  sfx.unlock();          // a click is the only moment a browser will start audio
+  buildAgents();
+  $('verdict').classList.remove('show');
+  $('e1').textContent = ''; $('e2').textContent = '';
+  $('run').disabled = true; $('run').textContent = 'Priming…';
+
+  ring.resize(); ring.reset();
+  await Promise.all(agents.map(a => a.prime()));
+
+  // the slower model sets the tempo: a heavy attack must take longer to land than
+  // one of its round trips, or it could never block on time
+  const lat = Math.max(...agents.map(a => (a.p50 || a.lastLatency || 0)/1000), 0.12);
+  const scale = ring.setPacing(lat);
+  $('pace').textContent = `${scale.toFixed(1)}× · kick winds up in ${Math.round(FCFG.moves.KICK.startup*scale)}ms @ ${lat.toFixed(2)}s`;
+
+  ring.start();
+  for (const a of agents) a.start();
+  $('run').disabled = false; $('run').textContent = 'Restart';
+  $('stopBtn').disabled = false;
+  starting = false;
+}
+
+function stopFight(){ ring.finish('TIME'); }
+
+$('run').addEventListener('click', startFight);
+$('stopBtn').addEventListener('click', stopFight);
+$('exportBtn').addEventListener('click', () => {
+  const data = lastRun || snapshot();
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'kombat-benchmark.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+function snapshot(){
+  const sides = [{f: ring.left, i: 0}, {f: ring.right, i: 1}];
+  return {
+    recorded_at: new Date().toISOString(),
+    tempo_scale: +ring.timeScale.toFixed(2),
+    kick_startup_ms: Math.round(FCFG.moves.KICK.startup * ring.timeScale),
+    elapsed_sec: +(ring.elapsed/1000).toFixed(1),
+    winner: ring.winner,
+    end_reason: ring.endReason || null,
+    sides: sides.map(({f, i}) => {
+      const ag = agents[i];
+      return {
+        model: ag.servedModel || ag.model,
+        health_left: Math.round(f.health),
+        damage_dealt: Math.round(f.stats.dealt),
+        damage_taken: Math.round(f.stats.taken),
+        attacks_thrown: f.stats.thrown,
+        attacks_landed: f.stats.landed,
+        attacks_blocked_by_foe: f.stats.blocked,
+        times_i_blocked: f.stats.blocks,
+        decisions: ag.decisions,
+        decisions_per_sec: +ag.rate.toFixed(2),
+        latency_p50_ms: Math.round(ag.p50),
+        latency_p95_ms: Math.round(ag.p95),
+        input_tokens: ag.inputTokens,
+        output_tokens: ag.outputTokens,
+        error: ag.error || null
+      };
+    })
+  };
+}
+
+// ---------- HUD ----------
+function paintAgent(side){
+  const ag = agents[side-1];
+  if (!ag) return;
+  $('dc'+side).textContent = ag.decisions;
+  $('dps'+side).textContent = ag.rate.toFixed(1);
+  $('p50'+side).innerHTML = Math.round(ag.p50) + '<s>ms</s>';
+  $('e'+side).textContent = ag.error ? 'error: ' + ag.error : '';
+  const f = side === 1 ? ring.left : ring.right;
+  $('hb'+side).textContent = `${f.stats.landed} / ${f.stats.blocks}`;
+  const probs = ag.lastProbs || {};
+  for (const fill of document.querySelectorAll(`#probs${side} .pfill`)){
+    const k = fill.dataset.k;
+    const v = k === 'COMMIT p(yes)' ? (ag.commitP || 0) : (probs[k] || 0);
+    fill.style.width = (v*100).toFixed(1) + '%';
+    fill.closest('.prow').querySelector('em').textContent = v.toFixed(2);
+  }
+}
+
+let hudT = 0;
+function paintFrame(now){
+  const hp = [ring.left.health, ring.right.health];
+  for (const side of [1, 2]){
+    const pct = Math.max(0, hp[side-1]);
+    $('f'+side).style.width = pct + '%';
+    $('h'+side).textContent = Math.round(pct) + '%';
+  }
+  $('clock').textContent = Math.max(0, Math.ceil((FCFG.roundMs - ring.elapsed)/1000));
+  if (now - hudT > 100){ hudT = now; for (const side of [1,2]) paintAgent(side); }
+}
+
+// ---------- loop ----------
+let t0 = performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = (now - t0)/1000; t0 = now;
+  if (dt > 0.05) dt = 0.05;
+  ring.step(dt, agents[0], agents[1]);
+  paintFrame(now);
+}
+
+buildAgents();
+window.__kombat = {ring, agents, snapshot, sfx};
+addEventListener('resize', () => ring.resize());
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

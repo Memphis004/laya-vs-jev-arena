@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typed Decision Lab</title>
+<style>
+  :root{ --bg:#070d0b; --line:rgba(120,220,170,.16); --ink:#dff6ea; --muted:#7ba493;
+         --p1:#5ef2a8; --p2:#5ec8f2; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  main{min-height:100%;display:flex;flex-direction:column;justify-content:center;
+    gap:44px;padding:64px 48px;max-width:1100px;margin:0 auto}
+  .eyebrow{font-size:11px;letter-spacing:.32em;color:var(--muted);text-transform:uppercase}
+  h1{margin:8px 0 0;font-size:54px;letter-spacing:.14em;font-weight:700}
+  .lede{font-size:16px;line-height:1.7;color:var(--muted);max-width:720px;margin-top:14px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  a.card{display:flex;flex-direction:column;gap:12px;padding:32px;border-radius:16px;
+    border:1px solid var(--line);background:rgba(8,18,14,.6);text-decoration:none;color:inherit}
+  a.card:hover{border-color:rgba(120,220,170,.4)}
+  a.card h2{margin:0;font-size:28px;letter-spacing:.16em}
+  a.card.snake h2{color:var(--p1)}
+  a.card.fight h2{color:var(--p2)}
+  a.card p{margin:0;font-size:14px;line-height:1.65;color:var(--muted)}
+  .q{font-size:12px;color:var(--ink);opacity:.85;line-height:1.8}
+  footer{font-size:11px;letter-spacing:.14em;color:var(--muted);opacity:.7}
+  @media(max-width:760px){ .cards{grid-template-columns:1fr} h1{font-size:36px} }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <div class="eyebrow">Typed decision lab</div>
+    <h1>LAYA × JEV</h1>
+    <p class="lede">Two games, one contract. Each side is driven by a model answering
+    typed questions over the same state — a choice and a noul, every step, no parsing.
+    Pick an arena.</p>
+  </div>
+
+  <div class="cards">
+    <a class="card snake" href="./snake/">
+      <h2>SNAKE →</h2>
+      <p>Two seeded arenas, identical apples. A steering choice and a sprint noul per
+      decision. Measures whether a model can hold a control loop together.</p>
+      <div class="q">choice · HARD_LEFT / LEFT / STRAIGHT / RIGHT / HARD_RIGHT<br>noul · is sprinting safe?</div>
+    </a>
+    <a class="card fight" href="./fight/">
+      <h2>KOMBAT →</h2>
+      <p>One ring, two fighters, 90 seconds. Blocking is a reaction problem, so this
+      punishes a slow decision loop far harder than the snake does.</p>
+      <div class="q">choice · ADVANCE / RETREAT / PUNCH / KICK / BLOCK / JUMP<br>noul · commit to the heavy attack?</div>
+    </a>
+  </div>
+
+  <footer>PYTHON SERVER.PY · LAYA RUNS IN-PROCESS · JEV IS PROXIED, KEY NEVER REACHES THE BROWSER</footer>
+</main>
+</body>
+</html>
