@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typed Decision Lab — Runner</title>
+<style>
+  :root{ --bg:#0a0816; --line:rgba(180,160,255,.16); --ink:#efe9ff; --muted:#9a8fbf;
+         --p1:#5ef2a8; --p2:#5ec8f2; --gold:#ffd76b; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:13px;flex-wrap:wrap;padding:11px 18px;
+    border-bottom:1px solid var(--line);background:rgba(12,9,26,.8)}
+  .brand{font-size:10px;letter-spacing:.3em;color:var(--muted);text-transform:uppercase}
+  .brand b{display:block;font-size:19px;letter-spacing:.18em;color:var(--ink);margin-top:3px}
+  button{cursor:pointer;font:inherit;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    border-radius:999px;padding:9px 18px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink)}
+  button.primary{background:var(--gold);color:#2a1a00;border-color:transparent;font-weight:700}
+  button:disabled{opacity:.4}
+  input,select{font:inherit;font-size:11px;color:var(--ink);background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  input[type=number]{width:72px}
+  .field{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  a{color:var(--muted);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none}
+  .spacer{flex:1}
+  .meta{font-size:9px;letter-spacing:.1em;color:var(--muted);text-align:right;line-height:1.6}
+  .meta b{color:var(--ink)}
+  .clock{font-size:22px;color:var(--gold);min-width:70px;text-align:right}
+  .tracks{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;min-height:0}
+  .side{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .bar{display:flex;align-items:center;gap:12px;padding:9px 13px;border-bottom:1px solid var(--line);background:rgba(12,9,26,.8)}
+  .who{font-size:16px;letter-spacing:.2em}
+  .s1 .who{color:var(--p1)} .s2 .who{color:var(--p2)}
+  .tag{margin-left:auto;font-size:9px;letter-spacing:.14em;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 7px}
+  .big{font-size:26px} .lbl{font-size:9px;letter-spacing:.14em;color:var(--muted)}
+  .stage{flex:1;min-height:0;position:relative}
+  canvas{display:block;width:100%;height:100%}
+  .dead{position:absolute;inset:0;display:none;place-items:center;text-align:center;background:rgba(8,5,18,.6);
+    font-size:12px;letter-spacing:.18em;color:var(--muted)}
+  .dead.show{display:grid}
+  .dead b{display:block;font-size:26px;letter-spacing:.14em;color:#ff7a6b;margin-bottom:6px}
+  .win{color:var(--gold);font-size:11px;letter-spacing:.16em}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+  .stat{background:rgba(12,9,26,.92);padding:8px 11px}
+  .stat i{font-style:normal;display:block;font-size:9px;letter-spacing:.12em;color:var(--muted)}
+  .stat b{font-size:16px} .stat b s{text-decoration:none;font-size:10px;color:var(--muted);margin-left:2px}
+  .probs{padding:9px 13px 11px;background:rgba(12,9,26,.92);border-top:1px solid var(--line)}
+  .prow{display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:9px;letter-spacing:.1em;color:var(--muted)}
+  .prow span:first-child{width:130px}
+  .ptrack{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .pfill{height:100%;width:0;border-radius:3px;background:#ff7a6b;transition:width .12s}
+  .prow em{font-style:normal;width:32px;text-align:right;color:var(--ink)}
+  .err{color:#ff7a6b;font-size:10px;min-height:12px;margin-top:4px}
+  footer{padding:7px 18px 10px;text-align:center;font-size:10px;letter-spacing:.12em;color:var(--muted);opacity:.75}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Typed decision lab / runner<b><span id="n1">LAYA</span> × <span id="n2">JEV</span></b></div>
+    <button class="primary" id="run">Run</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <label class="field">Seed <input type="number" id="seed" value="2026"></label>
+    <div class="spacer"></div>
+    <a href="../">← Lab</a>
+    <div class="meta">SPEED <b id="speed">10</b> m/s<br>IT KEEPS GETTING FASTER · LAST ONE RUNNING WINS</div>
+    <div class="clock" id="clock">00.0</div>
+  </header>
+
+  <div class="tracks">
+    <section class="side s1">
+      <div class="bar">
+        <div class="who" id="w1">LAYA</div>
+        <select id="agent1"><option value="laya" selected>Laya · local</option><option value="jev-latest">TypeSafe · jev-latest</option><option value="human">Human · A / D</option></select>
+        <div><div class="lbl">Distance</div><div class="big" id="d1">0<span class="lbl"> m</span></div></div>
+        <div><div class="lbl">Coins</div><div class="big" id="c1">0</div></div>
+        <div><div class="lbl">Lives</div><div class="big" id="l1" style="color:#ff7a6b">♥♥♥</div></div>
+        <div class="win" id="win1"></div>
+        <div class="tag" id="tag1">LOCAL</div>
+      </div>
+      <div class="stage"><canvas id="t1"></canvas><div class="dead" id="x1"><div><b>CRASHED</b><span id="xr1"></span></div></div></div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc1">0</b></div>
+        <div class="stat"><i>Decisions / s</i><b id="dps1">0.0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p501">0<s>ms</s></b></div>
+        <div class="stat"><i>Going to</i><b id="go1">—</b></div>
+      </div>
+      <div class="probs" id="pr1"></div>
+    </section>
+
+    <section class="side s2">
+      <div class="bar">
+        <div class="who" id="w2">JEV</div>
+        <select id="agent2"><option value="jev-latest" selected>TypeSafe · jev-latest</option><option value="laya">Laya · local</option><option value="human">Human · ← / →</option></select>
+        <div><div class="lbl">Distance</div><div class="big" id="d2">0<span class="lbl"> m</span></div></div>
+        <div><div class="lbl">Coins</div><div class="big" id="c2">0</div></div>
+        <div><div class="lbl">Lives</div><div class="big" id="l2" style="color:#ff7a6b">♥♥♥</div></div>
+        <div class="win" id="win2"></div>
+        <div class="tag" id="tag2">REMOTE / API</div>
+      </div>
+      <div class="stage"><canvas id="t2"></canvas><div class="dead" id="x2"><div><b>CRASHED</b><span id="xr2"></span></div></div></div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc2">0</b></div>
+        <div class="stat"><i>Decisions / s</i><b id="dps2">0.0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p502">0<s>ms</s></b></div>
+        <div class="stat"><i>Going to</i><b id="go2">—</b></div>
+      </div>
+      <div class="probs" id="pr2"></div>
+    </section>
+  </div>
+  <footer>EACH MODEL IS TOLD WHICH LANES HAVE A BARRIER AHEAD AND ANSWERS ONE YES/NO QUESTION PER LANE · SAME SEED, SAME OBSTACLES · SAME DECISION RULE FOR BOTH</footer>
+</div>
+
+<script type="module">
+import { Track, RCFG, LANE_NAMES } from './runner.js';
+import { ModelAgent } from '../shared/agents.js';
+import { Sfx } from '../shared/sfx.js';
+import { keys, HumanPlayer } from '../shared/human.js';
+
+const $ = id => document.getElementById(id);
+const LANES = [-1, 0, 1];
+
+/* One yes/no question per lane: "is there a barrier in it?" This is the format Laya's own
+   runner demo uses, and in testing it was the most accurate way to ask Laya. Jev gets the
+   exact same questions and the exact same rule for turning answers into a lane. */
+const QUESTIONS = Object.fromEntries(LANES.map(l => [LANE_NAMES[l], {
+  type: 'noul',
+  instructions: `Is there a barrier in the ${LANE_NAMES[l]} lane?`,
+  criteria: {true: `a barrier blocks the ${LANE_NAMES[l]} lane`, false: `the ${LANE_NAMES[l]} lane is empty`}
+}]));
+
+class RunnerAgent extends ModelAgent {
+  constructor(track, opts){ super(track, {...opts, questions: QUESTIONS}); this.track = track; this.lanePick = null; this.blockP = {}; }
+  senseState(){ return this.track.sense(); }
+  onReset(){ this.lanePick = null; this.blockP = {}; }
+  onAnswers(a){
+    for (const l of LANES) this.blockP[l] = a[LANE_NAMES[l]] ? a[LANE_NAMES[l]].noul : 0.5;
+    // the rule, identical for both models: go to the lane least likely to be blocked,
+    // but stay put unless another lane is clearly safer (stops lane-jitter on near-ties)
+    const best = LANES.reduce((x, y) => this.blockP[y] < this.blockP[x] ? y : x);
+    const here = this.track.lane;
+    this.lanePick = (this.blockP[here] <= this.blockP[best] + 0.08) ? here : best;
+    this.lastChoice = LANE_NAMES[this.lanePick].toUpperCase();
+  }
+  control(){ return this.lanePick; }
+}
+
+/** a person on the keyboard: each tap moves one lane */
+class RunnerHuman extends HumanPlayer {
+  constructor(side, track){ super(side); this.track = track; this.lanePick = 0; this.blockP = {}; }
+  reset(){ super.reset(); this.lanePick = 0; }
+  control(){
+    if (keys.take(this.side, 'left'))  { this.lanePick = Math.max(-1, this.track.lane - 1); this.decisions++; }
+    if (keys.take(this.side, 'right')) { this.lanePick = Math.min(1, this.track.lane + 1); this.decisions++; }
+    this.lastChoice = LANE_NAMES[this.lanePick].toUpperCase();
+    return this.lanePick;
+  }
+}
+
+const sfx = new Sfx();
+const tracks = [
+  new Track($('t1'), {accent: '#5ef2a8', onEvent: onEvent}),
+  new Track($('t2'), {accent: '#5ec8f2', onEvent: onEvent})
+];
+const agents = [null, null];
+
+function specFor(side){
+  const v = $('agent'+side).value;
+  if (v === 'human') return {model:'human', tag: side === 1 ? 'KEYS · A / D' : 'KEYS · ← / →'};
+  return v === 'laya' ? {model:'laya', endpoint:'/api/laya', workers:2, tag:'LOCAL'}
+                      : {model:v, endpoint:'/api/jev', workers:3, tag:'REMOTE / API'};
+}
+function build(){
+  for (const side of [1, 2]){
+    const s = specFor(side), tr = tracks[side-1];
+    if (agents[side-1]) agents[side-1].stop();
+    agents[side-1] = s.model === 'human' ? new RunnerHuman(side, tr)
+      : new RunnerAgent(tr, {model:s.model, endpoint:s.endpoint, workers:s.workers, minInterval: 40});
+    tr.controller = () => agents[side-1].control();
+    $('w'+side).textContent = $('n'+side).textContent = s.model.toUpperCase();
+    $('tag'+side).textContent = s.tag;
+    $('pr'+side).innerHTML = LANES.map(l => `<div class="prow"><span>BARRIER ${LANE_NAMES[l].toUpperCase()} p</span>
+      <div class="ptrack"><div class="pfill" data-l="${l}"></div></div><em>0</em></div>`).join('')
+      + `<div class="err" id="e${side}"></div>`;
+  }
+}
+for (const side of [1, 2]) $('agent'+side).addEventListener('change', build);
+
+function onEvent(kind, tr){
+  if (kind === 'coin'){ sfx.jump(); return; }
+  if (kind === 'hit'){ sfx.hit('KICK'); return; }
+  if (kind !== 'crash') return;
+  sfx.ko();
+  const side = tracks.indexOf(tr) + 1;
+  $('x'+side).classList.add('show');
+  $('xr'+side).textContent = `${tr.deathReason} · ${tr.distance} m · ${tr.speed.toFixed(0)} m/s`;
+  agents[side-1].stop();
+  if (!tracks[0].alive && !tracks[1].alive) finish();
+}
+
+let racing = false, starting = false, simT = 0;
+async function start(){
+  if (starting) return; starting = true; sfx.unlock();
+  build();
+  const seed = parseInt($('seed').value, 10) || 2026;
+  for (const side of [1, 2]){ $('x'+side).classList.remove('show'); $('win'+side).textContent = ''; }
+  for (const t of tracks){ t.resize(); t.reset(seed); }
+  $('run').disabled = true; $('run').textContent = 'Priming…';
+  await Promise.all(agents.map(a => a.prime()));
+  for (const t of tracks) t.running = true;
+  for (const a of agents) a.start();
+  racing = true; simT = 0; sfx.bell();
+  $('run').disabled = false; $('run').textContent = 'Restart'; $('stopBtn').disabled = false;
+  starting = false;
+}
+function finish(){
+  racing = false; $('stopBtn').disabled = true;
+  for (const a of agents) a.stop();
+  for (const t of tracks) t.running = false;
+  const [a, b] = tracks;
+  // whoever ran farther wins; coins only break a tie on distance
+  if (a.score === b.score){ $('win1').textContent = $('win2').textContent = 'DRAW'; }
+  else $('win' + (a.score > b.score ? 1 : 2)).textContent = 'WINNER';
+}
+$('run').addEventListener('click', start);
+$('stopBtn').addEventListener('click', finish);
+
+let hud = 0;
+function paint(now){
+  for (const side of [1, 2]){
+    const t = tracks[side-1], ag = agents[side-1];
+    $('d'+side).innerHTML = `${t.distance}<span class="lbl"> m</span>`;
+    $('c'+side).textContent = t.coinsGot;
+    $('l'+side).textContent = '♥'.repeat(Math.max(0, t.lives)) + '♡'.repeat(Math.max(0, RCFG.lives - t.lives));
+    if (!ag || now - hud < 100) continue;
+    $('dc'+side).textContent = ag.decisions;
+    $('dps'+side).textContent = ag.rate.toFixed(1);
+    $('p50'+side).innerHTML = Math.round(ag.p50) + '<s>ms</s>';
+    $('go'+side).textContent = ag.lastChoice || '—';
+    $('e'+side).textContent = ag.error ? 'error: ' + ag.error : '';
+    for (const f of document.querySelectorAll(`#pr${side} .pfill`)){
+      const v = ag.blockP[f.dataset.l] ?? 0;
+      f.style.width = (v*100).toFixed(0) + '%';
+      f.closest('.prow').querySelector('em').textContent = v.toFixed(2);
+    }
+  }
+  if (now - hud >= 100) hud = now;
+  const lead = tracks.find(t => t.alive) || tracks[0];
+  $('speed').textContent = lead.speed.toFixed(0);
+  $('clock').textContent = simT.toFixed(1);
+}
+
+let t0 = performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = (now - t0)/1000; t0 = now; if (dt > 0.05) dt = 0.05;
+  for (const t of tracks) t.step(dt);
+  if (racing){ simT += dt; if (simT >= RCFG.roundSec) finish(); }
+  paint(now);
+}
+build();
+window.__runner = {tracks, agents};
+addEventListener('resize', () => tracks.forEach(t => t.resize()));
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

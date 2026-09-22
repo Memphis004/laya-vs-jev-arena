@@ -1,0 +1,6 @@
+# DOMAIN=arena.example.com gets a free HTTPS certificate automatically.
+# Without a domain (DOMAIN=:80) the arena is served over plain http on the VPS IP.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy arena:8732
+}

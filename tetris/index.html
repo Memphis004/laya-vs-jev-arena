@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typed Decision Lab — Tetris</title>
+<link rel="stylesheet" href="../shared/arena.css">
+<style>
+  .pick{padding:9px 13px 4px;background:rgba(12,9,26,.92);border-top:1px solid var(--line);font-size:11px;
+        color:var(--ink);min-height:40px;line-height:1.5}
+  .pick i{font-style:normal;color:var(--muted);font-size:9px;letter-spacing:.12em;display:block}
+  .prow span:first-child{width:62%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Typed decision lab / tetris<b><span id="n1">LAYA</span> × <span id="n2">JEV</span></b></div>
+    <button class="primary" id="run">Play</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <label class="field">Seed <input type="number" id="seed" value="2026"></label>
+    <div class="spacer"></div>
+    <a href="../">← Lab</a>
+    <div class="meta">TIME PER PIECE <b id="tpp">3.5</b> s<br>SHRINKS EVERY PIECE · MOST LINES WINS</div>
+    <div class="clock" id="clock">00.0</div>
+  </header>
+  <div class="tracks">
+    <section class="side s1">
+      <div class="bar">
+        <div class="who" id="w1">LAYA</div>
+        <select id="agent1"><option value="laya" selected>Laya · local</option><option value="jev-latest">TypeSafe · jev-latest</option><option value="human">Human · WASD</option></select>
+        <div><div class="lbl">Lines</div><div class="big" id="d1">0</div></div>
+        <div class="win" id="win1"></div>
+        <div class="tag" id="tag1">LOCAL</div>
+      </div>
+      <div class="stage"><canvas id="t1"></canvas><div class="dead" id="x1"><div><b>GAME OVER</b><span id="xr1"></span></div></div></div>
+      <div class="stats">
+        <div class="stat"><i>Pieces judged</i><b id="dc1">0</b></div>
+        <div class="stat"><i>Spots per piece</i><b id="sp1">0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p501">0<s>ms</s></b></div>
+        <div class="stat"><i>Too slow</i><b id="ts1">0</b></div>
+      </div>
+      <div class="pick" id="pk1"><i>MODEL'S PICK</i>—</div>
+      <div class="probs" id="pr1"></div>
+    </section>
+    <section class="side s2">
+      <div class="bar">
+        <div class="who" id="w2">JEV</div>
+        <select id="agent2"><option value="jev-latest" selected>TypeSafe · jev-latest</option><option value="laya">Laya · local</option><option value="human">Human · arrows</option></select>
+        <div><div class="lbl">Lines</div><div class="big" id="d2">0</div></div>
+        <div class="win" id="win2"></div>
+        <div class="tag" id="tag2">REMOTE / API</div>
+      </div>
+      <div class="stage"><canvas id="t2"></canvas><div class="dead" id="x2"><div><b>GAME OVER</b><span id="xr2"></span></div></div></div>
+      <div class="stats">
+        <div class="stat"><i>Pieces judged</i><b id="dc2">0</b></div>
+        <div class="stat"><i>Spots per piece</i><b id="sp2">0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p502">0<s>ms</s></b></div>
+        <div class="stat"><i>Too slow</i><b id="ts2">0</b></div>
+      </div>
+      <div class="pick" id="pk2"><i>MODEL'S PICK</i>—</div>
+      <div class="probs" id="pr2"></div>
+    </section>
+  </div>
+  <footer>CODE DESCRIBES EVERY LANDING SPOT IN PLAIN WORDS · THE MODEL RATES EACH "WOULD THIS LEAVE THE STACK CLEAN?" · SAME PIECES, SAME RULE FOR BOTH · RUN OUT OF TIME AND THE PIECE DROPS WHERE IT SPAWNED</footer>
+</div>
+
+<script type="module">
+import { Board, TCFG } from './tetris.js';
+import { ModelAgent, apiHeaders } from '../shared/agents.js';
+import { Sfx } from '../shared/sfx.js';
+import { keys, HumanPlayer } from '../shared/human.js';
+
+const $ = id => document.getElementById(id);
+const STATE = 'A Tetris piece is about to be placed. Each question describes one possible placement.';
+const CRITERIA = {true: 'no new holes and the surface stays flat, or lines are cleared',
+                  false: 'it creates holes or a tall uneven bump'};
+
+/* One decision per piece, not a stream: ask once when a piece appears. Placements that
+   read the same share one question, so a request carries ~5-12 questions, not ~30. */
+class TetrisAgent extends ModelAgent {
+  constructor(board, opts){
+    super(board, {...opts, questions: {warm: {type: 'noul', instructions: 'Is this a warm-up?', criteria: {true: 'yes', false: 'no'}}}});
+    this.board = board; this.inflight = false; this.askedFor = 0; this.ranked = []; this.pickText = '';
+  }
+  senseState(){ return STATE; }
+  async ask(){
+    const b = this.board, id = b.pieceId;
+    this.inflight = true; this.askedFor = id;
+    const texts = [...new Set(b.options.map(o => o.text))];
+    this.questions = Object.fromEntries(texts.map((t, i) => ['p' + i, {
+      type: 'noul', instructions: `Would this placement leave the stack clean? ${t}`, criteria: CRITERIA}]));
+    const t0 = performance.now();
+    try {
+      const res = await fetch(this.endpoint, {method: 'POST', headers: apiHeaders(),
+        body: JSON.stringify({model: this.model, state: STATE, questions: this.questions})});
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      this.apply(body, performance.now() - t0);
+      if (b.pieceId !== id || b.over || b.anim) return;          // the piece already dropped
+      const p = texts.map((_, i) => body.answers['p' + i] ? body.answers['p' + i].noul : 0);
+      const bestText = texts[p.indexOf(Math.max(...p))];
+      // the rule, identical for both: the highest-rated description; among spots that
+      // read the same, the one that lands lowest
+      let best = -1;
+      b.options.forEach((o, i) => { if (o.text === bestText && (best < 0 || o.y > b.options[best].y)) best = i; });
+      b.decision = best;
+      this.pickText = bestText;
+      this.ranked = texts.map((t, i) => ({t, p: p[i]})).sort((x, y) => y.p - x.p).slice(0, 4);
+    } catch (err) {
+      this.error = String(err.message || err);
+    } finally { this.inflight = false; }
+  }
+}
+
+/** a person on the keyboard: move with left/right, rotate with up, drop with down.
+    Same pieces and the same shrinking timer as the models: run out and it drops. */
+class TetrisHuman extends HumanPlayer {
+  constructor(side, board){ super(side); this.board = board; this.ranked = []; this.pickText = ''; this.inflight = false; }
+  play(){
+    const b = this.board;
+    if (keys.take(this.side, 'left')) b.tryMove(-1);
+    if (keys.take(this.side, 'right')) b.tryMove(1);
+    if (keys.take(this.side, 'up') || keys.take(this.side, 'a1')) b.tryRotate();
+    if (keys.take(this.side, 'down') || keys.take(this.side, 'alt')){ b.hardDrop(); this.decisions++; }
+  }
+}
+
+const sfx = new Sfx();
+const boards = [ new Board($('t1'), {accent: '#5ef2a8', onEvent}), new Board($('t2'), {accent: '#5ec8f2', onEvent}) ];
+const agents = [null, null];
+
+function specFor(side){
+  const v = $('agent'+side).value;
+  if (v === 'human') return {model:'human', tag: side === 1 ? 'KEYS · A D move · W rotate · S drop' : 'KEYS · ← → move · ↑ rotate · ↓ drop'};
+  return v === 'laya' ? {model:'laya', endpoint:'/api/laya', tag:'LOCAL'} : {model:v, endpoint:'/api/jev', tag:'REMOTE / API'};
+}
+function build(){
+  for (const side of [1, 2]){
+    const s = specFor(side);
+    agents[side-1] = s.model === 'human' ? new TetrisHuman(side, boards[side-1])
+      : new TetrisAgent(boards[side-1], {model: s.model, endpoint: s.endpoint});
+    $('w'+side).textContent = $('n'+side).textContent = s.model.toUpperCase();
+    $('tag'+side).textContent = s.tag;
+  }
+}
+for (const side of [1, 2]) $('agent'+side).addEventListener('change', build);
+
+function onEvent(kind, b, n){
+  if (kind === 'lines'){ n >= 2 ? sfx.ko() : sfx.hit('KICK'); return; }
+  if (kind === 'lock'){ sfx.block(); return; }
+  if (kind !== 'topout' && kind !== 'done') return;
+  const side = boards.indexOf(b) + 1;
+  $('x'+side).classList.add('show');
+  $('xr'+side).textContent = kind === 'done' ? `${b.lines} lines · all ${TCFG.maxPieces} pieces placed` : `${b.lines} lines · stack reached the top`;
+  if (boards.every(x => x.over)) finish();
+}
+
+let playing = false, starting = false, simT = 0;
+async function start(){
+  if (starting) return; starting = true; sfx.unlock();
+  build();
+  const seed = parseInt($('seed').value, 10) || 2026;
+  for (const side of [1, 2]){ $('x'+side).classList.remove('show'); $('win'+side).textContent = ''; }
+  for (const b of boards){ b.resize(); b.reset(seed); }
+  $('run').disabled = true; $('run').textContent = 'Priming…';
+  await Promise.all(agents.map(a => a.prime()));             // loads Laya before the clock starts
+  for (const a of agents){ a.reset(); a.startedAt = performance.now(); }
+  document.activeElement && document.activeElement.blur();   // keys go to the game, not the button
+  for (const b of boards) b.running = true;
+  playing = true; simT = 0; sfx.bell();
+  $('run').disabled = false; $('run').textContent = 'Restart'; $('stopBtn').disabled = false;
+  starting = false;
+}
+function finish(){
+  playing = false; $('stopBtn').disabled = true;
+  for (const b of boards) b.running = false;
+  const [a, b] = boards;
+  if (a.lines === b.lines) $('win1').textContent = $('win2').textContent = 'DRAW';
+  else $('win' + (a.lines > b.lines ? 1 : 2)).textContent = 'WINNER';
+}
+$('run').addEventListener('click', start);
+$('stopBtn').addEventListener('click', finish);
+
+let hud = 0;
+function paint(now){
+  for (const side of [1, 2]){
+    const b = boards[side-1], ag = agents[side-1];
+    $('d'+side).textContent = b.lines;
+    $('ts'+side).textContent = b.timeouts;
+    if (!ag || now - hud < 120) continue;
+    $('dc'+side).textContent = ag.decisions;
+    $('sp'+side).textContent = b.options ? b.options.length : 0;
+    $('p50'+side).innerHTML = Math.round(ag.p50) + '<s>ms</s>';
+    $('pk'+side).innerHTML = ag.model === 'human' ? `<i>HUMAN</i>${$('tag'+side).textContent}`
+      : `<i>MODEL'S PICK</i>${ag.error ? 'error: ' + ag.error : (ag.pickText || '—')}`;
+    $('pr'+side).innerHTML = ag.ranked.map(r => `<div class="prow"><span>${r.t.replace('The piece ', '')}</span>
+      <div class="ptrack"><div class="pfill side${side}" style="width:${(r.p*100).toFixed(0)}%"></div></div><em>${r.p.toFixed(2)}</em></div>`).join('');
+  }
+  if (now - hud >= 120) hud = now;
+  $('tpp').textContent = Math.max(TCFG.timerMin, TCFG.timerStart - TCFG.timerStep*Math.max(boards[0].pieces, boards[1].pieces)).toFixed(1);
+  $('clock').textContent = simT.toFixed(1);
+}
+
+let t0 = performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = (now - t0)/1000; t0 = now; if (dt > 0.05) dt = 0.05;
+  for (let i = 0; i < 2; i++){
+    const b = boards[i], ag = agents[i];
+    if (ag && ag.model === 'human'){ if (playing && b.running) ag.play(); }
+    // one question per piece, as soon as it appears
+    else if (playing && b.running && !b.over && !b.anim && b.decision === null && ag && !ag.inflight && ag.askedFor !== b.pieceId) ag.ask();
+    b.step(dt);
+  }
+  if (playing) simT += dt;
+  paint(now);
+}
+build();
+window.__tetris = {boards, agents};
+addEventListener('resize', () => boards.forEach(b => b.resize()));
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

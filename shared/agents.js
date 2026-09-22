@@ -12,6 +12,14 @@
    The snake acts on the chosen option; the full distribution is kept for the HUD
    and the exported run record. */
 "use strict";
+import { jevKey } from './deploy.js';
+
+/** a visitor's own Jev key, if they pasted one, goes with every call */
+export function apiHeaders(){
+  const h = {'Content-Type': 'application/json'}, k = jevKey();
+  if (k) h['X-Jev-Key'] = k;
+  return h;
+}
 
 const STEER_VALUES = {
   HARD_LEFT: -1.0,
@@ -121,7 +129,7 @@ export class ModelAgent {
     try {
       const res = await fetch(this.endpoint, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: apiHeaders(),
         body: JSON.stringify({model: this.model, state: this.senseState(), questions: this.questions})
       });
       const body = await res.json();
@@ -180,7 +188,7 @@ export class ModelAgent {
       try {
         const res = await fetch(this.endpoint, {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: apiHeaders(),
           body: JSON.stringify({model: this.model, state: this.senseState(), questions: this.questions})
         });
         const body = await res.json();

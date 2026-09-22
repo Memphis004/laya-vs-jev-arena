@@ -1,0 +1,16 @@
+#:schema https://rlbot.org/schemas/agent.json
+[settings]
+agent_id = "promptengineer48/laya"
+name = "Laya"
+root_dir = ""
+# the venv next to this file; python ai_bot.py <backend>
+run_command = 'venv\Scripts\python.exe ai_bot.py laya'
+run_command_linux = "venv/bin/python ai_bot.py laya"
+
+[details]
+description = "Open-source Laya (local) picks the tactic; code drives the car."
+fun_fact = "Thinks in typed decisions, not text."
+source_link = "https://github.com/PromptEngineer48/laya-vs-jev-arena"
+developer = "Prompt Engineer 48"
+language = "Python 3"
+tags = ["1v1"]

@@ -1,0 +1,10 @@
+.env
+.git
+*.mov
+*.mp4
+*.pptx
+rocket
+thumbnails
+MORNING.md
+YOUTUBE_PACKAGE.md
+**/__pycache__

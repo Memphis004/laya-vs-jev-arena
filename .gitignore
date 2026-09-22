@@ -13,3 +13,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# rocket league bot decision logs and venv
+rocket/logs/
+rocket/venv/
+
+# my own morning note, not for the repo
+MORNING.md

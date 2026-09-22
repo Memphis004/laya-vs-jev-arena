@@ -1,0 +1,54 @@
+/* Shared layout for the side-by-side arenas (runner, flappy, tetris). */
+  :root{ --bg:#0a0816; --line:rgba(180,160,255,.16); --ink:#efe9ff; --muted:#9a8fbf;
+         --p1:#5ef2a8; --p2:#5ec8f2; --gold:#ffd76b; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:13px;flex-wrap:wrap;padding:11px 18px;
+    border-bottom:1px solid var(--line);background:rgba(12,9,26,.8)}
+  .brand{font-size:10px;letter-spacing:.3em;color:var(--muted);text-transform:uppercase}
+  .brand b{display:block;font-size:19px;letter-spacing:.18em;color:var(--ink);margin-top:3px}
+  button{cursor:pointer;font:inherit;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    border-radius:999px;padding:9px 18px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink)}
+  button.primary{background:var(--gold);color:#2a1a00;border-color:transparent;font-weight:700}
+  button:disabled{opacity:.4}
+  input,select{font:inherit;font-size:11px;color:var(--ink);background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  input[type=number]{width:72px}
+  .field{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  a{color:var(--muted);font-size:10px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none}
+  .spacer{flex:1}
+  .meta{font-size:9px;letter-spacing:.1em;color:var(--muted);text-align:right;line-height:1.6}
+  .meta b{color:var(--ink)}
+  .clock{font-size:22px;color:var(--gold);min-width:70px;text-align:right}
+  .tracks{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;min-height:0}
+  .side{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .bar{display:flex;align-items:center;gap:12px;padding:9px 13px;border-bottom:1px solid var(--line);background:rgba(12,9,26,.8)}
+  .who{font-size:16px;letter-spacing:.2em}
+  .s1 .who{color:var(--p1)} .s2 .who{color:var(--p2)}
+  .tag{margin-left:auto;font-size:9px;letter-spacing:.14em;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 7px}
+  .big{font-size:26px} .lbl{font-size:9px;letter-spacing:.14em;color:var(--muted)}
+  .stage{flex:1;min-height:0;position:relative}
+  canvas{display:block;width:100%;height:100%}
+  .dead{position:absolute;inset:0;display:none;place-items:center;text-align:center;background:rgba(8,5,18,.6);
+    font-size:12px;letter-spacing:.18em;color:var(--muted)}
+  .dead.show{display:grid}
+  .dead b{display:block;font-size:26px;letter-spacing:.14em;color:#ff7a6b;margin-bottom:6px}
+  .win{color:var(--gold);font-size:11px;letter-spacing:.16em}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+  .stat{background:rgba(12,9,26,.92);padding:8px 11px}
+  .stat i{font-style:normal;display:block;font-size:9px;letter-spacing:.12em;color:var(--muted)}
+  .stat b{font-size:16px} .stat b s{text-decoration:none;font-size:10px;color:var(--muted);margin-left:2px}
+  .probs{padding:9px 13px 11px;background:rgba(12,9,26,.92);border-top:1px solid var(--line)}
+  .prow{display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:9px;letter-spacing:.1em;color:var(--muted)}
+  .prow span:first-child{width:130px}
+  .ptrack{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .pfill{height:100%;width:0;border-radius:3px;background:#ff7a6b;transition:width .12s}
+  .prow em{font-style:normal;width:32px;text-align:right;color:var(--ink)}
+  .err{color:#ff7a6b;font-size:10px;min-height:12px;margin-top:4px}
+  footer{padding:7px 18px 10px;text-align:center;font-size:10px;letter-spacing:.12em;color:var(--muted);opacity:.75}
+
+  /* shared additions */
+  .hearts{color:#ff7a6b}
+  .pfill.side1{background:#5ef2a8} .pfill.side2{background:#5ec8f2}

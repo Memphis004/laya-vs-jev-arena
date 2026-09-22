@@ -1,0 +1,27 @@
+#:schema https://rlbot.org/schemas/match.json
+# Laya (blue) vs Jev (orange), 1v1, five minutes.
+[rlbot]
+launcher = "Epic"
+auto_start_agents = true
+wait_for_agents = true
+
+[match]
+game_mode = "Soccar"
+game_map_upk = "Stadium_P"
+skip_replays = false
+start_without_countdown = false
+existing_match_behavior = "Restart"
+# needed for the on-screen HUD (tactic, latency, decisions/s)
+enable_rendering = true
+enable_state_setting = false
+
+[mutators]
+match_length = "FiveMinutes"
+
+[[cars]]
+config_file = "laya.bot.toml"
+team = 0
+
+[[cars]]
+config_file = "jev.bot.toml"
+team = 1

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typed Decision Lab — Flappy</title>
+<link rel="stylesheet" href="../shared/arena.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Typed decision lab / flappy<b><span id="n1">LAYA</span> × <span id="n2">JEV</span></b></div>
+    <button class="primary" id="run">Fly</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <label class="field">Seed <input type="number" id="seed" value="2026"></label>
+    <div class="spacer"></div>
+    <a href="../">← Lab</a>
+    <div class="meta">SPEED <b id="speed">150</b><br>PIPES COME FASTER EVERY SECOND · MOST PIPES WINS</div>
+    <div class="clock" id="clock">00.0</div>
+  </header>
+  <div class="tracks">
+    <section class="side s1">
+      <div class="bar">
+        <div class="who" id="w1">LAYA</div>
+        <select id="agent1"><option value="laya" selected>Laya · local</option><option value="jev-latest">TypeSafe · jev-latest</option><option value="human">Human · W / Space</option></select>
+        <div><div class="lbl">Pipes</div><div class="big" id="d1">0</div></div>
+        <div><div class="lbl">Lives</div><div class="big hearts" id="l1">♥♥♥</div></div>
+        <div class="win" id="win1"></div>
+        <div class="tag" id="tag1">LOCAL</div>
+      </div>
+      <div class="stage"><canvas id="t1"></canvas><div class="dead" id="x1"><div><b>GAME OVER</b><span id="xr1"></span></div></div></div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc1">0</b></div>
+        <div class="stat"><i>Decisions / s</i><b id="dps1">0.0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p501">0<s>ms</s></b></div>
+        <div class="stat"><i>Thinks gap is</i><b id="go1">—</b></div>
+      </div>
+      <div class="probs" id="pr1"></div>
+    </section>
+    <section class="side s2">
+      <div class="bar">
+        <div class="who" id="w2">JEV</div>
+        <select id="agent2"><option value="jev-latest" selected>TypeSafe · jev-latest</option><option value="laya">Laya · local</option><option value="human">Human · ↑ / Enter</option></select>
+        <div><div class="lbl">Pipes</div><div class="big" id="d2">0</div></div>
+        <div><div class="lbl">Lives</div><div class="big hearts" id="l2">♥♥♥</div></div>
+        <div class="win" id="win2"></div>
+        <div class="tag" id="tag2">REMOTE / API</div>
+      </div>
+      <div class="stage"><canvas id="t2"></canvas><div class="dead" id="x2"><div><b>GAME OVER</b><span id="xr2"></span></div></div></div>
+      <div class="stats">
+        <div class="stat"><i>Decisions</i><b id="dc2">0</b></div>
+        <div class="stat"><i>Decisions / s</i><b id="dps2">0.0</b></div>
+        <div class="stat"><i>P50 latency</i><b id="p502">0<s>ms</s></b></div>
+        <div class="stat"><i>Thinks gap is</i><b id="go2">—</b></div>
+      </div>
+      <div class="probs" id="pr2"></div>
+    </section>
+  </div>
+  <footer>EACH MODEL IS TOLD WHERE THE NEXT GAP IS AND ANSWERS ONE YES/NO QUESTION PER POSITION · CODE FLIES THE BIRD TO THE MOST LIKELY ONE · SAME PIPES, SAME RULE FOR BOTH</footer>
+</div>
+
+<script type="module">
+import { Sky, FCFG, BAND_NAMES } from './flappy.js';
+import { ModelAgent } from '../shared/agents.js';
+import { Sfx } from '../shared/sfx.js';
+import { keys, HumanPlayer } from '../shared/human.js';
+
+const $ = id => document.getElementById(id);
+const WORDS = ['near the top', 'in the middle', 'near the bottom'];
+
+/* One yes/no question per gap position. In testing both models got 6/6 on this, as long
+   as the sentence describes ONLY the gap (see flappy.js). */
+const QUESTIONS = Object.fromEntries(BAND_NAMES.map((b, i) => [b, {
+  type: 'noul', instructions: `Is the next gap ${WORDS[i]} of the screen?`,
+  criteria: {true: `the gap is ${WORDS[i]}`, false: `the gap is not ${WORDS[i]}`}
+}]));
+
+class FlappyAgent extends ModelAgent {
+  constructor(sky, opts){ super(sky, {...opts, questions: QUESTIONS}); this.sky = sky; this.belief = null; this.p = {}; }
+  senseState(){ return this.sky.sense(); }
+  onReset(){ this.belief = null; this.p = {}; }
+  onAnswers(a){
+    BAND_NAMES.forEach((b, i) => { this.p[i] = a[b] ? a[b].noul : 0; });
+    // the rule, identical for both: fly to the position most likely to be the gap
+    this.belief = [0, 1, 2].reduce((x, y) => this.p[y] > this.p[x] ? y : x);
+    this.lastChoice = BAND_NAMES[this.belief].toUpperCase();
+  }
+  control(){ return this.belief; }
+}
+
+/** a person on the keyboard: W or Space flaps on the left, ↑ or Enter on the right */
+class FlappyHuman extends HumanPlayer {
+  constructor(side){ super(side); this.p = {}; }
+  control(){
+    const flap = keys.take(this.side, 'up') || keys.take(this.side, 'alt');
+    if (flap){ this.decisions++; this.lastChoice = 'FLAP'; }
+    return flap ? 'flap' : null;
+  }
+}
+
+const sfx = new Sfx();
+const skies = [ new Sky($('t1'), {body: '#5ef2a8', onEvent}), new Sky($('t2'), {body: '#5ec8f2', onEvent}) ];
+const agents = [null, null];
+
+function specFor(side){
+  const v = $('agent'+side).value;
+  if (v === 'human') return {model:'human', tag: side === 1 ? 'KEYS · W / SPACE' : 'KEYS · ↑ / ENTER'};
+  return v === 'laya' ? {model:'laya', endpoint:'/api/laya', workers:2, tag:'LOCAL'}
+                      : {model:v, endpoint:'/api/jev', workers:3, tag:'REMOTE / API'};
+}
+function build(){
+  for (const side of [1, 2]){
+    const s = specFor(side), sky = skies[side-1];
+    if (agents[side-1]) agents[side-1].stop();
+    agents[side-1] = s.model === 'human' ? new FlappyHuman(side)
+      : new FlappyAgent(sky, {model:s.model, endpoint:s.endpoint, workers:s.workers, minInterval: 40});
+    sky.manual = s.model === 'human';
+    sky.controller = () => agents[side-1].control();
+    $('w'+side).textContent = $('n'+side).textContent = s.model.toUpperCase();
+    $('tag'+side).textContent = s.tag;
+    $('pr'+side).innerHTML = BAND_NAMES.map((b, i) => `<div class="prow"><span>GAP ${b.toUpperCase()} p</span>
+      <div class="ptrack"><div class="pfill side${side}" data-b="${i}"></div></div><em>0</em></div>`).join('')
+      + `<div class="err" id="e${side}"></div>`;
+  }
+}
+for (const side of [1, 2]) $('agent'+side).addEventListener('change', build);
+
+function onEvent(kind, sky){
+  if (kind === 'pass'){ sfx.jump(); return; }
+  if (kind === 'hit'){ sfx.hit('PUNCH'); return; }
+  if (kind !== 'crash') return;
+  sfx.ko();
+  const side = skies.indexOf(sky) + 1;
+  $('x'+side).classList.add('show');
+  $('xr'+side).textContent = `${sky.passed} pipes · ${sky.deathReason}`;
+  agents[side-1].stop();
+  if (!skies[0].alive && !skies[1].alive) finish();
+}
+
+let racing = false, starting = false, simT = 0;
+async function start(){
+  if (starting) return; starting = true; sfx.unlock();
+  build();
+  const seed = parseInt($('seed').value, 10) || 2026;
+  for (const side of [1, 2]){ $('x'+side).classList.remove('show'); $('win'+side).textContent = ''; }
+  for (const s of skies){ s.resize(); s.reset(seed); }
+  $('run').disabled = true; $('run').textContent = 'Priming…';
+  await Promise.all(agents.map(a => a.prime()));
+  for (const s of skies) s.running = true;
+  for (const a of agents) a.start();
+  racing = true; simT = 0; sfx.bell();
+  $('run').disabled = false; $('run').textContent = 'Restart'; $('stopBtn').disabled = false;
+  starting = false;
+}
+function finish(){
+  racing = false; $('stopBtn').disabled = true;
+  for (const a of agents) a.stop();
+  for (const s of skies) s.running = false;
+  const [a, b] = skies;
+  if (a.passed === b.passed) $('win1').textContent = $('win2').textContent = 'DRAW';
+  else $('win' + (a.passed > b.passed ? 1 : 2)).textContent = 'WINNER';
+}
+$('run').addEventListener('click', start);
+$('stopBtn').addEventListener('click', finish);
+
+let hud = 0;
+function paint(now){
+  for (const side of [1, 2]){
+    const s = skies[side-1], ag = agents[side-1];
+    $('d'+side).textContent = s.passed;
+    $('l'+side).textContent = '♥'.repeat(Math.max(0, s.lives)) + '♡'.repeat(Math.max(0, FCFG.lives - s.lives));
+    if (!ag || now - hud < 100) continue;
+    $('dc'+side).textContent = ag.decisions;
+    $('dps'+side).textContent = ag.rate.toFixed(1);
+    $('p50'+side).innerHTML = Math.round(ag.p50) + '<s>ms</s>';
+    $('go'+side).textContent = ag.lastChoice || '—';
+    $('e'+side).textContent = ag.error ? 'error: ' + ag.error : '';
+    for (const f of document.querySelectorAll(`#pr${side} .pfill`)){
+      const v = ag.p[f.dataset.b] ?? 0;
+      f.style.width = (v*100).toFixed(0) + '%';
+      f.closest('.prow').querySelector('em').textContent = v.toFixed(2);
+    }
+  }
+  if (now - hud >= 100) hud = now;
+  const lead = skies.find(s => s.alive) || skies[0];
+  $('speed').textContent = lead.speed.toFixed(0);
+  $('clock').textContent = simT.toFixed(1);
+}
+
+let t0 = performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = (now - t0)/1000; t0 = now; if (dt > 0.05) dt = 0.05;
+  for (const s of skies) s.step(dt);
+  if (racing){ simT += dt; if (simT >= FCFG.roundSec) finish(); }
+  paint(now);
+}
+build();
+window.__flappy = {skies, agents};
+addEventListener('resize', () => skies.forEach(s => s.resize()));
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

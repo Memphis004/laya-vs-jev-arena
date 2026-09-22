@@ -11,6 +11,14 @@ changes between the two sides is the model. From the **Prompt Engineer 48** YouT
 
 ---
 
+## Play Human vs Jev on your own server (Docker)
+
+```bash
+docker run -d --name arena --restart unless-stopped -p 80:8732 --cpus 1 --memory 512m -e TYPESAFE_API_KEY=your_key_here ghcr.io/promptengineer48/laya-vs-jev-arena:latest
+```
+
+Open `http://YOUR_SERVER_IP`. Full VPS guide, HTTPS and key protection: [DEPLOY.md](DEPLOY.md).
+
 ## Quickstart
 
 **You need:** Python 3.10+, a browser, and (for Jev) a TypeSafe API key from
@@ -131,6 +139,40 @@ kick's startup is about 1.15 round trips of the **slower** model — otherwise t
 side could never physically block, which would make the test meaningless rather than
 hard. That tempo multiplier is shown in the header and written into the export.
 
+## Play against the models yourself
+
+Every arena has a **Human** option in each side's dropdown: You vs Laya, You vs Jev, or
+two people on one keyboard (left side on WASD, right side on the arrows).
+
+| Game | Left side | Right side |
+|---|---|---|
+| Snake | A / D steer, W sprint | same keys |
+| Runner | A / D change lane | ← / → |
+| Flappy | W or Space flap | ↑ or Enter |
+| Tetris | A / D move · W rotate · S drop | ← / → · ↑ · ↓ |
+| Kombat | A / D move · F punch · G kick · hold H block · W jump | ← / → · K · L · hold ; · ↑ |
+
+A human plays with no delay, so where a game is paced to the slower player (Snake,
+Kombat) a match against Jev runs at Jev's pace — slowed so the model *can* react.
+
+## Runner, Flappy and Tetris
+
+Three more arenas on the same server, same shared agent code:
+
+| Game | URL | The model answers | Code does |
+|---|---|---|---|
+| Runner | `/runner/` | one yes/no per lane: is there a barrier? | moves to the clearest lane |
+| Flappy | `/flappy/` | one yes/no per position: is the next gap here? | flies the bird to the likeliest gap |
+| Tetris | `/tetris/` | one yes/no per distinct landing spot: would it leave the stack clean? | drops the piece on the best-rated spot |
+
+Two design lessons from testing, both baked into the code:
+
+- **Flapping is a reflex no model can do.** Even a perfect bird that sees the world 0.3 s
+  late dies within seconds, so the model reads the next gap and code flies.
+- **Tell Laya one thing per sentence.** "The next gap is near the top. The bird is in the
+  middle." made Laya answer with the *bird's* position (0/6); describing only the gap
+  gave 6/6.
+
 ## Layout
 
     index.html            the lab's front page, links both arenas
@@ -147,6 +189,9 @@ hard. That tempo multiplier is shown in the header and written into the export.
     fight/
       index.html          the ring: health bars, decision panels, export
       fight.js            fighters, frame data, hit resolution, renderer
+    runner/  flappy/  tetris/
+      index.html + <game>.js   side-by-side arenas, seeded, shared/arena.css layout
+    rocket/               Rocket League bots (RLBot v5), see rocket/README.md
 
 Both arenas import `../shared/agents.js`, so the networking, metrics and pipelining
 are written once. A game supplies its own `questions` and its own `senseState()`.

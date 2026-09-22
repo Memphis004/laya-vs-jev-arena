@@ -1,0 +1,44 @@
+# One command on the VPS:   docker compose up -d
+# Your key goes in a .env file next to this one:  TYPESAFE_API_KEY=ts_...
+services:
+  arena:
+    image: ghcr.io/promptengineer48/laya-vs-jev-arena:latest
+    build: .
+    restart: unless-stopped
+    environment:
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TRUST_PROXY: "1"                             # Caddy sits in front
+      JEV_RATE_PER_MIN: ${JEV_RATE_PER_MIN:-360}   # AI calls per minute per visitor
+      JEV_MAX_INFLIGHT: ${JEV_MAX_INFLIGHT:-24}    # AI calls at once, whole server
+      JEV_DAILY_CAP: ${JEV_DAILY_CAP:-20000}       # AI calls per day on your key (0 = no cap)
+    # the games run in each player's browser; the server only serves files and proxies Jev
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    expose:
+      - "8732"
+
+  # HTTPS on your domain. Point an A record at the VPS, set DOMAIN in .env.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    depends_on:
+      - arena
+
+volumes:
+  caddy_data:

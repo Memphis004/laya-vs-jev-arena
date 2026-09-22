@@ -116,6 +116,7 @@
           <option value="laya" selected>Laya · local, in-process</option>
           <option value="jev-latest">TypeSafe · jev-latest</option>
           <option value="jev-1.13.0">TypeSafe · jev-1.13.0</option>
+          <option value="human">Human · A D move · F punch · G kick · H block · W jump</option>
         </select>
         <div class="tag" id="tag1">LOCAL</div>
       </div>
@@ -135,6 +136,7 @@
           <option value="jev-latest" selected>TypeSafe · jev-latest</option>
           <option value="jev-1.13.0">TypeSafe · jev-1.13.0</option>
           <option value="laya">Laya · local, in-process</option>
+          <option value="human">Human · ← → move · K punch · L kick · ; block · ↑ jump</option>
         </select>
         <div class="tag" id="tag2">REMOTE / API</div>
       </div>
@@ -155,6 +157,7 @@
 <script type="module">
 import { Ring, FCFG, ACTIONS } from './fight.js';
 import { ModelAgent } from '../shared/agents.js';
+import { keys, HumanPlayer } from '../shared/human.js';
 import { Sfx } from '../shared/sfx.js';
 
 const $ = id => document.getElementById(id);
@@ -217,11 +220,34 @@ class FightAgent extends ModelAgent {
   control(){ return this; }     // the ring reads .action and .fresh directly
 }
 
+/** a person on the keyboard. Taps throw attacks and jumps; holding block guards; the
+    move keys mean ADVANCE when pressed toward the opponent and RETREAT when away. */
+class FightHuman extends HumanPlayer {
+  constructor(ring, who, side){ super(side); this.ring = ring; this.who = who; this.action = null; this.fresh = false; this.commitP = 0; }
+  control(){
+    const me = this.who === 'left' ? this.ring.left : this.ring.right;
+    const foe = this.who === 'left' ? this.ring.right : this.ring.left;
+    const toward = foe.x > me.x ? 'right' : 'left', away = toward === 'right' ? 'left' : 'right';
+    let act = null, fresh = false;
+    if (keys.take(this.side, 'a1')) { act = 'PUNCH'; fresh = true; }
+    else if (keys.take(this.side, 'a2')) { act = 'KICK'; fresh = true; }
+    else if (keys.take(this.side, 'up')) { act = 'JUMP'; fresh = true; }
+    else if (keys.isDown(this.side, 'a3')) act = 'BLOCK';
+    else if (keys.isDown(this.side, toward)) act = 'ADVANCE';
+    else if (keys.isDown(this.side, away)) act = 'RETREAT';
+    if (fresh) this.decisions++;
+    this.action = act; this.fresh = fresh;
+    if (act) this.lastChoice = act;
+    return this;
+  }
+}
+
 const ring = new Ring($('ring'), {onEvent: onRingEvent});
 const agents = [null, null];
 
 function specFor(side){
   const sel = $('agent'+side).value;
+  if (sel === 'human') return {model: 'human', tag: 'KEYBOARD'};
   return sel === 'laya'
     ? {model: 'laya', endpoint: '/api/laya', workers: 2, tag: 'LOCAL'}
     : {model: sel, endpoint: '/api/jev', workers: 3, tag: 'REMOTE / API'};
@@ -231,13 +257,16 @@ function buildAgents(){
   for (const side of [1, 2]){
     const spec = specFor(side);
     if (agents[side-1]) agents[side-1].stop();
-    agents[side-1] = new FightAgent(ring, side === 1 ? 'left' : 'right', {
-      model: spec.model, endpoint: spec.endpoint, workers: spec.workers,
-      onUpdate: () => paintAgent(side)
-    });
+    agents[side-1] = spec.model === 'human'
+      ? new FightHuman(ring, side === 1 ? 'left' : 'right', side)
+      : new FightAgent(ring, side === 1 ? 'left' : 'right', {
+          model: spec.model, endpoint: spec.endpoint, workers: spec.workers,
+          onUpdate: () => paintAgent(side)
+        });
     const name = spec.model.toUpperCase();
     $('w'+side).textContent = name;
     $('n'+side).textContent = name;
+    document.querySelector(`.panel[data-side="${side}"] .who`).textContent = name;
     $('tag'+side).textContent = spec.tag;
     $('probs'+side).innerHTML = [...ACTIONS, 'COMMIT p(yes)'].map(k => `
       <div class="prow"><span>${k}</span><div class="ptrack"><div class="pfill"
@@ -386,7 +415,8 @@ function frame(now){
   requestAnimationFrame(frame);
   let dt = (now - t0)/1000; t0 = now;
   if (dt > 0.05) dt = 0.05;
-  ring.step(dt, agents[0], agents[1]);
+  // control() reads the keyboard for a human; for a model it returns the agent itself
+  ring.step(dt, agents[0] && agents[0].control(), agents[1] && agents[1].control());
   paintFrame(now);
 }
 
